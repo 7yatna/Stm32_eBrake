@@ -53,6 +53,10 @@ static CanMap* canMap;
 //int uauxGain = 210; //!! hard coded AUX gain
 int uauxGain = 224; //!! hard coded AUX gain
 int analogGain = 620;
+int R_Lock = 0;
+int L_Lock = 0;
+int R_Count = 0;
+int L_Count = 0;
 
 //sample 100ms task
 static void Ms100Task(void)
@@ -119,90 +123,6 @@ static void Ms200Task(void)
 
 void Analog_Outputs()
 {	
-	switch (Param::GetInt(Param::Red_LED))
-	{
-		case 1:
-			{
-				DigIo::R_LED.Set();
-				Param::SetInt(Param::R_LED, 1);
-			}
-		break;
-		default:
-		DigIo::R_LED.Clear();
-		Param::SetInt(Param::R_LED, 0);
-		break;
-	}
-	
-	switch (Param::GetInt(Param::Green_LED))
-	{
-		case 1:
-			{
-				DigIo::G_LED.Set();
-				Param::SetInt(Param::G_LED, 1);
-			}
-		break;
-		default:
-		DigIo::G_LED.Clear();
-		Param::SetInt(Param::G_LED, 0);
-		break;
-	}
-
-	switch (Param::GetInt(Param::R_Bridge1))
-	{
-		case 1:
-			{
-				DigIo::R1_EN.Set();
-				Param::SetInt(Param::R1_EN, 1);
-			}
-		break;
-		default:
-		DigIo::R1_EN.Clear();
-		Param::SetInt(Param::R1_EN, 0);
-		break;
-	}
-	
-	switch (Param::GetInt(Param::R_Bridge2))
-	{
-		case 1:
-			{
-				DigIo::R2_EN.Set();
-				Param::SetInt(Param::R2_EN, 1);
-			}
-		break;
-		default:
-		DigIo::R2_EN.Clear();
-		Param::SetInt(Param::R2_EN, 0);
-		break;
-	}
-	
-	switch (Param::GetInt(Param::L_Bridge1))
-	{
-		case 1:
-			{
-				DigIo::L1_EN.Set();
-				Param::SetInt(Param::L1_EN, 1);
-			}
-		break;
-		default:
-		DigIo::L1_EN.Clear();
-		Param::SetInt(Param::L1_EN, 0);
-		break;
-	}
-	
-	switch (Param::GetInt(Param::L_Bridge2))
-	{
-		case 1:
-			{
-				DigIo::L2_EN.Set();
-				Param::SetInt(Param::L2_EN, 1);
-			}
-		break;
-		default:
-		DigIo::L2_EN.Clear();
-		Param::SetInt(Param::L2_EN, 0);
-		break;
-	}
-
 	switch (Param::GetInt(Param::Air_Compressor))
 	{
 		case 1:
@@ -313,68 +233,6 @@ void eBrake_Control()
 	switch (Param::GetInt(Param::Calibers_Control_Mode))
 	{
 		case 0:
-		switch (Param::GetInt(Param::Calibers))
-			{
-				case 0:
-					DigIo::R1_EN.Clear();
-					DigIo::R2_EN.Clear();
-					DigIo::L1_EN.Clear();
-					DigIo::L2_EN.Clear();
-				break;
-				case 1: 
-					DigIo::R1_EN.Set();
-					DigIo::R2_EN.Set();
-					DigIo::L1_EN.Clear();
-					DigIo::L2_EN.Clear();
-					switch (Param::GetInt(Param::LOCK))
-					{
-						case 0:
-						DigIo::FOR.Set();
-						DigIo::REV.Clear();
-						break;
-						case 1:
-						DigIo::FOR.Clear();
-						DigIo::REV.Set();
-						break;
-					}
-				break;
-				case 2: 
-					DigIo::R1_EN.Clear();
-					DigIo::R2_EN.Clear();
-					DigIo::L1_EN.Set();
-					DigIo::L2_EN.Set();
-					switch (Param::GetInt(Param::LOCK))
-					{
-						case 0:
-						DigIo::FOR.Set();
-						DigIo::REV.Clear();
-						break;
-						case 1:
-						DigIo::FOR.Clear();
-						DigIo::REV.Set();
-						break;
-					}
-				break;
-				case 3: 
-					DigIo::R1_EN.Set();
-					DigIo::R2_EN.Set();
-					DigIo::L1_EN.Set();
-					DigIo::L2_EN.Set();
-					switch (Param::GetInt(Param::LOCK))
-					{
-						case 0:
-						DigIo::FOR.Set();
-						DigIo::REV.Clear();
-						break;
-						case 1:
-						DigIo::FOR.Clear();
-						DigIo::REV.Set();
-						break;
-					}
-				break;
-			}
-		break;
-		case 1:
 			switch (Param::GetInt(Param::Calibers))
 			{
 				case 0:
@@ -391,20 +249,42 @@ void eBrake_Control()
 					switch (Param::GetInt(Param::LOCK))
 					{
 						case 0:
-						if ((Param::GetInt(Param::Right_Thshld)) < (Param::GetInt(Param::Hall_R)))
+							if ((R_Lock == 1) && (Param::GetInt(Param::Hall_R)) > 1)
 							{
-							DigIo::FOR.Set();
-							DigIo::REV.Clear();
+								DigIo::FOR.Set();
+								DigIo::REV.Clear();
+								R_Count++;
+								if (R_Count == 14) 
+								{
+									Disable_Calibers();
+									R_Count = 0;
+									R_Lock = 0;
+									Param::SetInt(Param::Status, 0);
+									DigIo::R_LED.Clear();
+									Param::SetInt(Param::R_LED, 0);
+									DigIo::G_LED.Set();
+									Param::SetInt(Param::G_LED, 1);
+								}
 							}
-						else Disable_Calibers();
 						break;
 						case 1:
-						if ((Param::GetInt(Param::Right_Thshld)) > (Param::GetInt(Param::Hall_R)))
+							if ((R_Lock == 0) && (Param::GetInt(Param::Hall_R)) > 1)
 							{
-							DigIo::FOR.Clear();
-							DigIo::REV.Set();
+								DigIo::FOR.Clear();
+								DigIo::REV.Set();
+								R_Count++;
+								if (R_Count == 15) 
+								{
+									Disable_Calibers();
+									R_Count = 0;
+									R_Lock = 1;
+									Param::SetInt(Param::Status, 1);
+									DigIo::R_LED.Set();
+									Param::SetInt(Param::R_LED, 1);
+									DigIo::G_LED.Clear();
+									Param::SetInt(Param::G_LED, 0);
+								}
 							}
-						else Disable_Calibers();
 						break;
 					}
 				break;
@@ -416,74 +296,141 @@ void eBrake_Control()
 					switch (Param::GetInt(Param::LOCK))
 					{
 						case 0:
-						if ((Param::GetInt(Param::Left_Thshld)) < (Param::GetInt(Param::Hall_L)))
+							if ((L_Lock == 1) && (Param::GetInt(Param::Hall_L)) > 1)
 							{
-							DigIo::FOR.Set();
-							DigIo::REV.Clear();
+								DigIo::FOR.Set();
+								DigIo::REV.Clear();
+								L_Count++;
+								if (L_Count == 14) 
+								{
+									Disable_Calibers();
+									L_Count = 0;
+									L_Lock = 0;
+									Param::SetInt(Param::Status, 0);
+									DigIo::R_LED.Clear();
+									Param::SetInt(Param::R_LED, 0);
+									DigIo::G_LED.Set();
+									Param::SetInt(Param::G_LED, 1);
+								}
 							}
-						else Disable_Calibers();
 						break;
 						case 1:
-						if ((Param::GetInt(Param::Left_Thshld)) > (Param::GetInt(Param::Hall_L)))
+							if ((L_Lock == 0) && (Param::GetInt(Param::Hall_L)) > 1)
 							{
-							DigIo::FOR.Clear();
-							DigIo::REV.Set();
+								DigIo::FOR.Clear();
+								DigIo::REV.Set();
+								L_Count++;
+								if (L_Count == 15) 
+								{
+									Disable_Calibers();
+									L_Count = 0;
+									L_Lock = 1;
+									Param::SetInt(Param::Status, 1);
+									DigIo::R_LED.Set();
+									Param::SetInt(Param::R_LED, 1);
+									DigIo::G_LED.Clear();
+									Param::SetInt(Param::G_LED, 0);
+								}
 							}
-						else Disable_Calibers();
 						break;
 					}
 				break;
 				case 3: 
+					DigIo::R1_EN.Set();
+					DigIo::R2_EN.Set();
+					DigIo::L1_EN.Set();
+					DigIo::L2_EN.Set();
 					switch (Param::GetInt(Param::LOCK))
 					{
 						case 0:
-						DigIo::FOR.Set();
-						DigIo::REV.Clear();
-						if ((Param::GetInt(Param::Right_Thshld)) < (Param::GetInt(Param::Hall_R)))
-						{
-							DigIo::R1_EN.Set();
-							DigIo::R2_EN.Set();
-						}
-						else Disable_R();
-						if ((Param::GetInt(Param::Left_Thshld)) < (Param::GetInt(Param::Hall_L)))
-						{
-							DigIo::L1_EN.Set();
-							DigIo::L2_EN.Set();
-						}
-						else Disable_L();
+							if ((R_Lock == 1) && (Param::GetInt(Param::Hall_R)) > 1)
+							{
+								DigIo::FOR.Set();
+								DigIo::REV.Clear();
+								R_Count++;
+								if (R_Count == 14) 
+								{
+									Disable_Calibers();
+									R_Count = 0;
+									R_Lock = 0;
+									Param::SetInt(Param::Status, 0);
+									DigIo::R_LED.Clear();
+									Param::SetInt(Param::R_LED, 0);
+									DigIo::G_LED.Set();
+									Param::SetInt(Param::G_LED, 1);
+								}
+							}
 						break;
 						case 1:
-						DigIo::FOR.Clear();
-						DigIo::REV.Set();
-						if ((Param::GetInt(Param::Right_Thshld)) > (Param::GetInt(Param::Hall_R)))
-						{
-								DigIo::R1_EN.Set();
-								DigIo::R2_EN.Set();
-						}
-						else Disable_R();
-						if ((Param::GetInt(Param::Left_Thshld)) > (Param::GetInt(Param::Hall_L)))
-						{
-							DigIo::L1_EN.Set();
-							DigIo::L2_EN.Set();
-						}
-						else Disable_L();
+							if ((R_Lock == 0) && (Param::GetInt(Param::Hall_R)) > 1)
+							{
+								DigIo::FOR.Clear();
+								DigIo::REV.Set();
+								R_Count++;
+								if (R_Count == 15) 
+								{
+									Disable_Calibers();
+									R_Count = 0;
+									R_Lock = 1;
+									Param::SetInt(Param::Status, 1);
+									DigIo::R_LED.Set();
+									Param::SetInt(Param::R_LED, 1);
+									DigIo::G_LED.Clear();
+									Param::SetInt(Param::G_LED, 0);
+								}
+							}
 						break;
 					}
 				break;
 			}
 		break;
-		case 2:
-			if ((Param::GetInt(Param::Hall_R)) < 4)
-			{
-			DigIo::FOR.Set();
-			DigIo::REV.Clear();
+		case 1:
 			DigIo::R1_EN.Set();
 			DigIo::R2_EN.Set();
 			DigIo::L1_EN.Set();
 			DigIo::L2_EN.Set();
+			switch (Param::GetInt(Param::LOCK))
+			{
+				case 0:
+					if ((R_Lock == 1) && (Param::GetInt(Param::Hall_R)) > 1)
+					{
+						DigIo::FOR.Set();
+						DigIo::REV.Clear();
+						R_Count++;
+						if (R_Count == 30) 
+						{
+							Disable_Calibers();
+							R_Count = 0;
+							R_Lock = 0;
+							Param::SetInt(Param::Status, 0);
+							DigIo::R_LED.Set();
+							Param::SetInt(Param::R_LED, 1);
+							DigIo::G_LED.Set();
+							Param::SetInt(Param::G_LED, 1);
+						}
+					}
+				break;
+				case 1:
+					if ((R_Lock == 0) && (Param::GetInt(Param::Hall_R)) > 1)
+					{
+						DigIo::FOR.Clear();
+						DigIo::REV.Set();
+						R_Count++;
+						if (R_Count == 22) 
+						{
+							Disable_Calibers();
+							R_Count = 0;
+							R_Lock = 1;
+							Param::SetInt(Param::Status, 1);
+							DigIo::R_LED.Set();
+							Param::SetInt(Param::R_LED, 1);
+							DigIo::G_LED.Set();
+							Param::SetInt(Param::G_LED, 1);
+						}
+					}
+				break;
 			}
-			else Disable_Calibers();
-		break;			
+		break;
 	}						
 }
 
@@ -497,17 +444,6 @@ void Disable_Calibers()
 	DigIo::L2_EN.Clear();
 }
 
-void Disable_R()
-{
-	DigIo::R1_EN.Clear();
-	DigIo::R2_EN.Clear();
-}
-
-void Disable_L()
-{
-	DigIo::L1_EN.Clear();
-	DigIo::L2_EN.Clear();
-}
 
 
 //sample 10 ms task

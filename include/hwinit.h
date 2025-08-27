@@ -32,8 +32,6 @@ void rtc_setup(void);
 void Analog_Outputs();
 void eBrake_Control();
 void Disable_Calibers();
-void Disable_R();
-void Disable_L();
 void write_bootloader_pininit();
 
 #ifdef __cplusplus
