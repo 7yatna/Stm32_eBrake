@@ -39,7 +39,7 @@
  */
 
 //Define a version string of your firmware here
-#define VER 0.02AK
+#define VER 0.03AK
 
 /* Entries must be ordered as follows:
    1. Saveable parameters (id != 0)
@@ -50,10 +50,13 @@
 //Next value Id: 2028
 /*              category     name         unit       min     max     default id */
 #define PARAM_LIST \
-    PARAM_ENTRY(CAT_HBridge,      Calibers_Control_Mode, 		MODE,       0,      1,  	1,   1 ) \
-	PARAM_ENTRY(CAT_HBridge,      LOCK,   					 	OFFON,      0,     	1, 		1,   2 ) \
-	PARAM_ENTRY(CAT_HBridge,      Calibers, 					CALBRS,     0,      3,      3,   3 ) \
-	PARAM_ENTRY(CAT_AIRSUS,		  AirSuspension_Control_Mode, 	MODE,       0,      2,  	1,   12 )\
+    PARAM_ENTRY(CAT_SYSCON,       Mode,       					OPMODES,    0,      1,      0,   1) \
+	PARAM_ENTRY(CAT_SYSCON,       CanCtrl,    					OFFON,     	0,      1,      0,   2) \
+	PARAM_ENTRY(CAT_SYSCON,       NodeId,     					"",     	1,      63,     6,   3) \
+	PARAM_ENTRY(CAT_HBridge,      Calibers_Control_Mode, 		MODE,       0,      1,  	1,   5 ) \
+	PARAM_ENTRY(CAT_HBridge,      LOCK,   					 	OFFON,      0,     	1, 		1,   6 ) \
+	PARAM_ENTRY(CAT_HBridge,      Calibers, 					CALBRS,     0,      3,      3,   7 ) \
+	PARAM_ENTRY(CAT_AIRSUS,		  AirSuspension_Control_Mode, 	MODE,       0,      1,  	1,   12 )\
 	PARAM_ENTRY(CAT_AIRSUS,       Air_Compressor, 				OFFON,     	0,      1,      0,   13 )\
 	PARAM_ENTRY(CAT_AIRSUS,       Rear_Right_Valve, 			OFFON,     	0,      1,      0,   14 )\
 	PARAM_ENTRY(CAT_AIRSUS,       Rear_Left_Valve, 				OFFON,     	0,      1,      0,   15 )\
@@ -69,6 +72,7 @@
 	VALUE_ENTRY(Hall_L, 	      "V",		2006 )\
 	VALUE_ENTRY(Status, 	      LKMODES,	2025 )\
 	VALUE_ENTRY(Press, 	   	      "V",		2007 )\
+	VALUE_ENTRY(Pressure, 	   	  "PSI",	2027 )\
 	VALUE_ENTRY(Sus_R, 	   	      "V",		2008 )\
 	VALUE_ENTRY(Sus_L, 	          "V",		2009 )\
 	VALUE_ENTRY(Comp_Tmp, 	      "V",		2010 )\
@@ -90,7 +94,7 @@
 
 
 /***** Enum String definitions *****/
-#define OPMODES      "0=Off, 1=Run"
+#define OPMODES      "0=OFF, 1=RUN"
 #define MODE         "0=Auto, 1=Service"
 #define OFFON        "0=OFF, 1=ON"
 #define CALBRS       "0=OFF, 1=Right, 2=Left, 3=RightLeft"

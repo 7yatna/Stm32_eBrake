@@ -58,7 +58,7 @@ void clock_setup(void)
    rcc_periph_clock_enable(RCC_USART3);
    //rcc_periph_clock_enable(RCC_USART1);//Model S slaves
    rcc_periph_clock_enable(RCC_TIM2); //Scheduler
-   //rcc_periph_clock_enable(RCC_TIM3); //PWM outputs	
+   rcc_periph_clock_enable(RCC_TIM3); //PWM outputs	
   // rcc_periph_clock_enable(RCC_TIM4); //PWM outputs  
    rcc_periph_clock_enable(RCC_DMA1);  //ADC, Encoder and UART receive
    rcc_periph_clock_enable(RCC_ADC1);

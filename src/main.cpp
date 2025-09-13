@@ -22,6 +22,7 @@
 #include <libopencm3/stm32/rtc.h>
 #include <libopencm3/stm32/can.h>
 #include <libopencm3/stm32/iwdg.h>
+#include <libopencm3/stm32/desig.h>
 #include "stm32_can.h"
 #include "canmap.h"
 #include "cansdo.h"
@@ -37,7 +38,7 @@
 #include "printf.h"
 #include "stm32scheduler.h"
 #include "terminalcommands.h"
-#include "CAN_Common.h"
+#include "my_string.h"
 #define PRINT_JSON 0
 
 extern "C" void __cxa_pure_virtual()
@@ -48,15 +49,16 @@ extern "C" void __cxa_pure_virtual()
 static Stm32Scheduler* scheduler;
 static CanHardware* can;
 static CanMap* canMap;
+static CanSdo* canSdo;					  
 
 
-//int uauxGain = 210; //!! hard coded AUX gain
 int uauxGain = 224; //!! hard coded AUX gain
 int analogGain = 620;
 int R_Lock = 0;
 int L_Lock = 0;
 int R_Count = 0;
 int L_Count = 0;
+uint8_t Gcount = 0x00;
 
 //sample 100ms task
 static void Ms100Task(void)
@@ -68,42 +70,19 @@ static void Ms100Task(void)
 	Param::SetFloat(Param::ActCur_L, ((float)AnaIn::ActCur_L.Get()));
 	Param::SetFloat(Param::Hall_R, 	 ((float)AnaIn::Hall_R.Get()) / analogGain);
 	Param::SetFloat(Param::Hall_L, 	 ((float)AnaIn::Hall_L.Get()) / analogGain);
-	Param::SetFloat(Param::Press, 	 ((float)AnaIn::Press.Get()) / analogGain);
-	Param::SetFloat(Param::Sus_R, 	 ((float)AnaIn::Sus_R.Get()) / analogGain);
-    Param::SetFloat(Param::Sus_L, 	 ((float)AnaIn::Sus_L.Get()) / analogGain);
-	Param::SetFloat(Param::Comp_Tmp, ((float)AnaIn::Comp_Tmp.Get()));
-	Param::SetFloat(Param::Btn_Sig,  ((float)AnaIn::Btn_Sig.Get()));
-	/*
-	Param::SetInt(Param::Aux_EN, (Param::GetInt(Param::Aux_Supply)));
-	Param::SetInt(Param::R_LED, (Param::GetInt(Param::Red_LED)));
-	Param::SetInt(Param::G_LED, (Param::GetInt(Param::Green_LED)));
-	Param::SetInt(Param::R1_EN, (Param::GetInt(Param::R_Bridge1)));
-	Param::SetInt(Param::R2_EN, (Param::GetInt(Param::R_Bridge2)));
-	Param::SetInt(Param::L1_EN, (Param::GetInt(Param::L_Bridge1)));
-	Param::SetInt(Param::L2_EN, (Param::GetInt(Param::R_Bridge2)));
-	Param::SetInt(Param::Compressor, (Param::GetInt(Param::Air_Compressor)));
-	Param::SetInt(Param::RR_Vlv, (Param::GetInt(Param::Rear_Right_Valve)));
-	Param::SetInt(Param::RL_Vlv, (Param::GetInt(Param::Rear_Left_Valve)));
-	Param::SetInt(Param::Amb_Vlv, (Param::GetInt(Param::Ambient_Valve)));
-	Param::SetInt(Param::Rvrs1_Vlv, (Param::GetInt(Param::Reverse1_Valve)));
-	Param::SetInt(Param::Rvrs2_Vlv, (Param::GetInt(Param::Reverse2_Valve)));
-	*/
+	Param::SetFloat(Param::Press, 	 (float)AnaIn::Press.Get());
+	Param::SetFloat(Param::Pressure, (((float)AnaIn::Press.Get()-161)/9.81));
+	if ((Param::GetInt(Param::Pressure)) < 0) Param::SetFloat(Param::Pressure, 0);
+	Param::SetFloat(Param::Sus_R, 	 (float)AnaIn::Sus_R.Get());
+    Param::SetFloat(Param::Sus_L, 	 (float)AnaIn::Sus_L.Get());
+	Param::SetFloat(Param::Comp_Tmp, (float)AnaIn::Comp_Tmp.Get());
+	Param::SetFloat(Param::Btn_Sig,  (float)AnaIn::Btn_Sig.Get());
 	float cpuLoad = scheduler->GetCpuLoad();
 	Param::SetFloat(Param::cpuload, cpuLoad / 10);
-	CAN_Common::Task100Ms();
-	Analog_Outputs();
+	canMap->SendAll();
+	Can_Tasks();
 	eBrake_Control();
 	
-    uint8_t bytes[8];
-    bytes[0]=0x05;
-    bytes[1]=0x00;
-    bytes[2]=0x01;
-    bytes[3]=0x10;
-    bytes[4]=0x00;
-    bytes[5]=0x00;
-    bytes[6]=0x00;
-    bytes[7]=0x69;
-    can->Send(0x380, bytes, 8); //Send on CAN1
 }
 
 static void Ms200Task(void)
@@ -125,89 +104,109 @@ void Analog_Outputs()
 {	
 	switch (Param::GetInt(Param::Air_Compressor))
 	{
+		case 0:
+			DigIo::Compressor.Clear();
+			Param::SetInt(Param::Compressor, 0);
+			break;
 		case 1:
-			{
-				DigIo::Compressor.Set();
-				Param::SetInt(Param::Compressor, 1);
-			}
-		break;
-		default:
-		DigIo::Compressor.Clear();
-		Param::SetInt(Param::Compressor, 0);
-		break;
+			DigIo::Compressor.Set();
+			Param::SetInt(Param::Compressor, 1);
+			break;
 	}
 	
 	switch (Param::GetInt(Param::Rear_Right_Valve))
 	{
+		case 0:
+			DigIo::RR_Vlv.Clear();
+			Param::SetInt(Param::RR_Vlv, 0);
+			break;
 		case 1:
-			{
-				DigIo::RR_Vlv.Set();
-				Param::SetInt(Param::RR_Vlv, 1);
-			}
-		break;
-		default:
-		DigIo::RR_Vlv.Clear();
-		Param::SetInt(Param::RR_Vlv, 0);
-		break;
+			DigIo::RR_Vlv.Set();
+			Param::SetInt(Param::RR_Vlv, 1);
+			break;
 	}
 	
 	switch (Param::GetInt(Param::Rear_Left_Valve))
 	{
+		case 0:
+			DigIo::RL_Vlv.Clear();
+			Param::SetInt(Param::RL_Vlv, 0);
+			break;
 		case 1:
-			{
-				DigIo::RL_Vlv.Set();
-				Param::SetInt(Param::RL_Vlv, 1);
-			}
-		break;
-		default:
-		DigIo::RL_Vlv.Clear();
-		Param::SetInt(Param::RL_Vlv, 0);
-		break;
+			DigIo::RL_Vlv.Set();
+			Param::SetInt(Param::RL_Vlv, 1);
+			break;
 	}
 	
 	switch (Param::GetInt(Param::Ambient_Valve))
 	{
+		case 0:
+			DigIo::Amb_Vlv.Clear();
+			Param::SetInt(Param::Amb_Vlv, 0);
+			break;
 		case 1:
-			{
-				DigIo::Amb_Vlv.Set();
-				Param::SetInt(Param::Amb_Vlv, 1);
-			}
-		break;
-		default:
-		DigIo::Amb_Vlv.Clear();
-		Param::SetInt(Param::Amb_Vlv, 0);
-		break;
+			DigIo::Amb_Vlv.Set();
+			Param::SetInt(Param::Amb_Vlv, 1);
+			break;
 	}
 	
 	switch (Param::GetInt(Param::Reverse1_Valve))
 	{
+		case 0:
+			DigIo::Rvrs1_Vlv.Clear();
+			Param::SetInt(Param::Rvrs1_Vlv, 0);
+			break;
 		case 1:
-			{
-				DigIo::Rvrs1_Vlv.Set();
-				Param::SetInt(Param::Rvrs1_Vlv, 1);
-			}
-		break;
-		default:
-		DigIo::Rvrs1_Vlv.Clear();
-		Param::SetInt(Param::Rvrs1_Vlv, 0);
-		break;
+			DigIo::Rvrs1_Vlv.Set();
+			Param::SetInt(Param::Rvrs1_Vlv, 1);
+			break;
 	}
 	
 	switch (Param::GetInt(Param::Reverse2_Valve))
 	{
+		case 0:
+			DigIo::Rvrs2_Vlv.Clear();
+			Param::SetInt(Param::Rvrs2_Vlv, 0);
+			break;
 		case 1:
-			{
-				DigIo::Rvrs2_Vlv.Set();
-				Param::SetInt(Param::Rvrs2_Vlv, 1);
-			}
-		break;
-		default:
-		DigIo::Rvrs2_Vlv.Clear();
-		Param::SetInt(Param::Rvrs2_Vlv, 0);
-		break;
+			DigIo::Rvrs2_Vlv.Set();
+			Param::SetInt(Param::Rvrs2_Vlv, 1);
+			break;
 	}
-	
 }
+
+void Can_Tasks()
+{
+	
+	uint8_t bytes[8];
+    bytes[0]= 0xFF;
+    bytes[1]= 0x00;
+    bytes[2]= Gcount;
+    bytes[3]= 0xCD;
+    can->Send(0x1D2, bytes, 4); //Send on CAN1	
+	Gcount = Gcount + 0x01;
+   
+   if (Gcount==0xFF)
+   {
+      Gcount=0x00;
+   }
+   
+}
+void DecodeCAN(int id, uint32_t* data)
+{
+	uint8_t* bytes = (uint8_t*)data;
+	switch (id)
+	{
+		case 0x1AE:
+			break;
+		default:
+						   
+									 
+			break;
+	}
+			
+}
+	
 
 void PinIntialization()
 {
@@ -453,39 +452,55 @@ static void Ms10Task(void)
     ErrorMessage::SetTime(rtc_get_counter_val());
 }
 
+static void SetCanFilters()
+{
+	can->RegisterUserMessage(0x605); //Can SDO
+	can->RegisterUserMessage(0x1AE); //OI Control Message
+}
+	
+static bool CanCallback(uint32_t id, uint32_t data[2], uint8_t dlc) //This is where we go when a defined CAN message is received.
+{
+    dlc = dlc;
+	if (Param::GetInt(Param::CanCtrl)) DecodeCAN(id,data);		
+	return false;
+}
 
 /** This function is called when the user changes a parameter */
+
+
 void Param::Change(Param::PARAM_NUM paramNum)
 {
     switch (paramNum)
     {
+		case Param::NodeId:
+			canSdo->SetNodeId(Param::GetInt(Param::NodeId));
+			break;
+		case Param::Air_Compressor:
+			Analog_Outputs();
+			break;
+		case Param::Rear_Right_Valve:
+			Analog_Outputs();
+			break;
+		case Param::Rear_Left_Valve:
+			Analog_Outputs();
+			break;
+		case Param::Ambient_Valve:
+			Analog_Outputs();
+			break;
+		case Param::Reverse1_Valve:
+			Analog_Outputs();
+			break;
+		case Param::Reverse2_Valve:
+			Analog_Outputs();
+			break;
+		case Param::CanCtrl:
+			SetCanFilters();
+			break;
 	default:
         //Handle general parameter changes here. Add paramNum labels for handling specific parameters
 		
         break;
     }
-}
-
-static void HandleClear()//Must add the ids to be received here as this set the filters.
-{
-    can->RegisterUserMessage(0x100);
-
-}
-
-static bool CanCallback(uint32_t id, uint32_t data[2], uint8_t dlc)//Here we decide what to to with the received ids. e.g. call a function in another class etc.
-{
-    dlc=dlc;
-    switch (id)
-    {
-    case 0x100:
-        CAN_Common::HandleCan(data);//can also pass the id and dlc if required to do further work downstream.
-        break;
-    default:
-
-        break;
-    }
-    return false;
-
 }
 
 //Whichever timer(s) you use for the scheduler, you have to
@@ -503,41 +518,40 @@ extern "C" int main(void)
     rtc_setup();
     ANA_IN_CONFIGURE(ANA_IN_LIST);
     DIG_IO_CONFIGURE(DIG_IO_LIST);
+	AnaIn::Start(); //Starts background ADC conversion via DMA
+	write_bootloader_pininit(); //Instructs boot loader to initialize certain pins
     gpio_primary_remap(AFIO_MAPR_SWJ_CFG_JTAG_OFF_SW_ON, AFIO_MAPR_CAN1_REMAP_PORTB);//Remap CAN pins to Portb alt funcs.
-    AnaIn::Start(); //Starts background ADC conversion via DMA
-    write_bootloader_pininit(); //Instructs boot loader to initialize certain pins
     nvic_setup(); //Set up some interrupts
     parm_load(); //Load stored parameters
     Stm32Scheduler s(TIM2); //We never exit main so it's ok to put it on stack
     scheduler = &s;
     //Initialize CAN1, including interrupts. Clock must be enabled in clock_setup()
     Stm32Can c(CAN1, CanHardware::Baud500,true);
-    FunctionPointerCallback cb(CanCallback, HandleClear);
-
+    FunctionPointerCallback cb(CanCallback, SetCanFilters);
+	CanMap cm(&c);
+	CanSdo sdo(&c, &cm);
+	sdo.SetNodeId(Param::GetInt(Param::NodeId));
 //store a pointer for easier access
     can = &c;
-    //c.SetNodeId(2);
+	canMap = &cm;
+    canSdo = &sdo;
     c.AddCallback(&cb);
-    CanMap cm(&c);
-    CanSdo sdo(&c, &cm);
-    TerminalCommands::SetCanMap(&cm);
-    HandleClear();
-    sdo.SetNodeId(2);
-
-    canMap = &cm;
-
-    CAN_Common::SetCan(&c);
-
     Terminal t(USART3, termCmds);
     TerminalCommands::SetCanMap(canMap);
-
 
     s.AddTask(Ms10Task, 10);
     s.AddTask(Ms100Task, 100);
 	s.AddTask(Ms200Task, 200);
+
     Param::SetInt(Param::version, 4);
     Param::Change(Param::PARAM_LAST); //Call callback one for general parameter propagation
 	PinIntialization();
+	SetCanFilters();
+	if (Param::GetInt(Param::CanCtrl) == 0)
+	{
+		
+	}
+	
 
     while(1)
     {
