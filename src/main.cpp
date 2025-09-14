@@ -60,6 +60,18 @@ int R_Count = 0;
 int L_Count = 0;
 uint8_t Gcount = 0x00;
 
+static void Ms1Task(void)
+{
+	
+}
+
+static void Ms10Task(void)
+{
+    //Set timestamp of error message
+    ErrorMessage::SetTime(rtc_get_counter_val());
+}
+
+
 //sample 100ms task
 static void Ms100Task(void)
 {
@@ -71,7 +83,7 @@ static void Ms100Task(void)
 	Param::SetFloat(Param::Hall_R, 	 ((float)AnaIn::Hall_R.Get()) / analogGain);
 	Param::SetFloat(Param::Hall_L, 	 ((float)AnaIn::Hall_L.Get()) / analogGain);
 	Param::SetFloat(Param::Press, 	 (float)AnaIn::Press.Get());
-	Param::SetFloat(Param::Pressure, (((float)AnaIn::Press.Get()-161)/9.81));
+	Param::SetFloat(Param::Pressure, (((float)AnaIn::Press.Get()-162)/9.81));
 	if ((Param::GetInt(Param::Pressure)) < 0) Param::SetFloat(Param::Pressure, 0);
 	Param::SetFloat(Param::Sus_R, 	 (float)AnaIn::Sus_R.Get());
     Param::SetFloat(Param::Sus_L, 	 (float)AnaIn::Sus_L.Get());
@@ -87,7 +99,6 @@ static void Ms100Task(void)
 
 static void Ms200Task(void)
 {
-	
 	if((Param::GetInt(Param::Vsense)) > 10.00) 
 	{
 		DigIo::Aux_EN.Set();
@@ -98,6 +109,7 @@ static void Ms200Task(void)
 		DigIo::Aux_EN.Clear();
 		Param::SetInt(Param::Aux_EN, 0);
 	}
+	
 }
 
 void Analog_Outputs()
@@ -446,11 +458,6 @@ void Disable_Calibers()
 
 
 //sample 10 ms task
-static void Ms10Task(void)
-{
-    //Set timestamp of error message
-    ErrorMessage::SetTime(rtc_get_counter_val());
-}
 
 static void SetCanFilters()
 {
@@ -538,7 +545,8 @@ extern "C" int main(void)
     c.AddCallback(&cb);
     Terminal t(USART3, termCmds);
     TerminalCommands::SetCanMap(canMap);
-
+	
+	s.AddTask(Ms1Task, 1);
     s.AddTask(Ms10Task, 10);
     s.AddTask(Ms100Task, 100);
 	s.AddTask(Ms200Task, 200);
