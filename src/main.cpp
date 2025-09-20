@@ -49,7 +49,7 @@ extern "C" void __cxa_pure_virtual()
 static Stm32Scheduler* scheduler;
 static CanHardware* can;
 static CanMap* canMap;
-static CanSdo* canSdo;					  
+static CanSdo* canSdo;
 
 
 int uauxGain = 224; //!! hard coded AUX gain
@@ -210,6 +210,7 @@ void DecodeCAN(int id, uint32_t* data)
 	switch (id)
 	{
 		case 0x1AE:
+			Param::SetInt(Param::opmode, bytes[0]);
 			break;
 		default:
 						   
